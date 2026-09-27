@@ -36,6 +36,7 @@ from .furnace.mix import MixPlanner
 from .furnace.temp import FurnaceTemperature
 from .lehr.anneal import AnnealZones
 from .lehr.belt import BeltDrive
+from .lehr.disposition import DispositionBoard
 from .lehr.heater import HeaterBank
 from .mold.blow import BlowStation
 from .mold.close import MoldCloser
@@ -169,6 +170,7 @@ class Platform:
         self.belt = BeltDrive(self.clock, self.bus, self.config.lehr)
         self.heater = HeaterBank(self.clock, self.bus, self.config.lehr)
         self.anneal = AnnealZones(self.bus, self.config.lehr)
+        self.disposition = DispositionBoard(self.config.disposition)
 
         self._cycles = 0
         self._elapsed_s = 0.0
@@ -477,6 +479,12 @@ class Platform:
                 "heater": heater.as_dict(),
             }
 
+    def disposition_report(self, limit: int = 2000) -> dict:
+        """按落盘的退火记录逐批给出滞留处置结论（继续／降级／判废／待判）。"""
+
+        records = self.audit.replay_from_journal(limit)
+        return self.disposition.evaluate(records, self.clock.now())
+
     def recalibrate_scale(self, offset_kg: float) -> dict:
         """重新标定投料秤并让下一批配比走新基线。"""
 
@@ -635,6 +643,7 @@ class Platform:
                 "/api/forehearth/gate",
                 "/api/mold/blow",
                 "/api/lehr/reset",
+                "/api/lehr/disposition",
                 "/api/scale/calibrate",
                 "/api/furnace/clear",
                 "/api/furnace/rebuild",
@@ -728,6 +737,7 @@ def build_platform(
             mold=effective.mold,
             lehr=effective.lehr,
             batch=effective.batch,
+            disposition=effective.disposition,
             pages=effective.pages,
         )
     return Platform(config=effective, clock=clock, unit=unit)

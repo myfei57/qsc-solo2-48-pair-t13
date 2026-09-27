@@ -97,7 +97,9 @@ def _cmd_demo(args: argparse.Namespace) -> int:
     platform.level.observe(config.furnace.level_target_mm - 18.0)
     restored = platform.start_charging(path="resume")
     anneal_excursion = platform.evaluate_anneal(592.0)
+    anneal_held = platform.evaluate_anneal(588.0)
     lehr_reset = platform.reset_lehr("演示用退火复位")
+    disposition = platform.disposition_report()
     shutdown = platform.stop()
 
     server = ConsoleServer(platform)
@@ -118,7 +120,9 @@ def _cmd_demo(args: argparse.Namespace) -> int:
         "cleared": cleared,
         "charged_after_clear": restored,
         "anneal_excursion": anneal_excursion,
+        "anneal_held": anneal_held,
         "lehr_reset": lehr_reset,
+        "disposition": disposition,
         "shutdown": shutdown,
         "probe": probe,
         "audit": platform.audit.summary(),

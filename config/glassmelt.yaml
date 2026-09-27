@@ -47,6 +47,15 @@ limits:
     scale_offset_max_kg: 12.0
     mix_tolerance_pct: 1.5
     charge_window_s: 180.0
+  disposition:
+    hold_downgrade_s: 300.0
+    hold_scrap_s: 1200.0
+    low_downgrade_c: 520.0
+    low_scrap_c: 480.0
+    high_downgrade_c: 575.0
+    high_scrap_c: 600.0
+    min_samples: 2
+    min_coverage: 0.5
 pages:
   - overview
   - operations

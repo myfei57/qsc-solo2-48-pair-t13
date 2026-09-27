@@ -43,6 +43,11 @@ async function refresh() {
   document.getElementById('out-alarms').textContent =
     alarms.count + ' 条告警\\n' + JSON.stringify(alarms.alarms.slice(-8), null, 2);
   document.getElementById('out-trend').textContent = JSON.stringify(trend.series, null, 2);
+  const dispEl = document.getElementById('out-disposition');
+  if (dispEl) {
+    const disp = await (await fetch('/api/lehr/disposition')).json();
+    dispEl.textContent = JSON.stringify(disp, null, 2);
+  }
 }
 async function act(path, payload) {
   const init = {method: 'POST', headers: {'Content-Type': 'application/json'}};
@@ -60,7 +65,7 @@ window.addEventListener('DOMContentLoaded', () => {
 _FOCUS = {
     "overview": "液面、窑温、助燃风与炉压的实时状态灯，以及退火告警列表",
     "operations": "投料、点火、开闸板、吹气与退火复位的操作按钮",
-    "records": "审计条目、告警历史与落盘日志",
+    "records": "审计条目、告警历史、落盘日志与滞留在制品的处置结论",
 }
 
 
@@ -99,6 +104,7 @@ def _operations(path: str) -> str:
             f"<p style='font-size:13px;color:#e6b98a'>{_FOCUS[path]}</p>"
             "<button onclick=\"act('/api/cycle', {load: 0.6})\">采样一次</button>"
             "<pre id='out-action'>等待操作</pre></section>"
+            "<section><h2>滞留处置</h2><pre id='out-disposition'>加载中</pre></section>"
             "<section><h2>审计条目</h2><pre id='out-state'>加载中</pre></section>"
             "<section><h2>告警</h2><pre id='out-alarms'>加载中</pre></section>"
             "<section><h2>趋势窗口（10 分钟）</h2><pre id='out-trend'>加载中</pre></section>"

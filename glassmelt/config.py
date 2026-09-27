@@ -295,6 +295,42 @@ class LehrLimits:
 
 
 @dataclass(frozen=True)
+class DispositionLimits:
+    """滞留在制品的处置阈值。"""
+
+    hold_downgrade_s: float
+    hold_scrap_s: float
+    low_downgrade_c: float
+    low_scrap_c: float
+    high_downgrade_c: float
+    high_scrap_c: float
+    min_samples: int
+    min_coverage: float
+
+    @classmethod
+    def from_mapping(cls, section: Mapping[str, Any]) -> "DispositionLimits":
+        limits = cls(
+            hold_downgrade_s=_number(section, "hold_downgrade_s", minimum=0.0),
+            hold_scrap_s=_number(section, "hold_scrap_s", minimum=0.0),
+            low_downgrade_c=_number(section, "low_downgrade_c"),
+            low_scrap_c=_number(section, "low_scrap_c"),
+            high_downgrade_c=_number(section, "high_downgrade_c"),
+            high_scrap_c=_number(section, "high_scrap_c"),
+            min_samples=int(_number(section, "min_samples", minimum=1.0)),
+            min_coverage=_number(section, "min_coverage", minimum=0.0),
+        )
+        if not 0.0 < limits.hold_downgrade_s < limits.hold_scrap_s:
+            raise ConfigError("滞留时长阈值必须满足 0 < 降级线 < 判废线", component="config")
+        if not limits.low_scrap_c < limits.low_downgrade_c:
+            raise ConfigError("低温阈值必须满足 判废线 < 降级线", component="config")
+        if not limits.high_downgrade_c < limits.high_scrap_c:
+            raise ConfigError("高温阈值必须满足 降级线 < 判废线", component="config")
+        if not 0.0 < limits.min_coverage <= 1.0:
+            raise ConfigError("温度履历覆盖率必须落在 (0, 1] 区间", component="config")
+        return limits
+
+
+@dataclass(frozen=True)
 class BatchLimits:
     """投料与配比约束。"""
 
@@ -341,6 +377,7 @@ class PlatformConfig:
     mold: MoldLimits
     lehr: LehrLimits
     batch: BatchLimits
+    disposition: DispositionLimits
     pages: tuple[str, ...] = field(default_factory=tuple)
 
     @classmethod
@@ -376,6 +413,7 @@ class PlatformConfig:
             mold=MoldLimits.from_mapping(_section(limits, "mold")),
             lehr=LehrLimits.from_mapping(_section(limits, "lehr")),
             batch=BatchLimits.from_mapping(_section(limits, "batch")),
+            disposition=DispositionLimits.from_mapping(_section(limits, "disposition")),
             pages=tuple(pages),
         )
 
@@ -451,6 +489,16 @@ def default_config() -> PlatformConfig:
             mix_tolerance_pct=1.5,
             charge_window_s=180.0,
         ),
+        disposition=DispositionLimits(
+            hold_downgrade_s=300.0,
+            hold_scrap_s=1200.0,
+            low_downgrade_c=520.0,
+            low_scrap_c=480.0,
+            high_downgrade_c=575.0,
+            high_scrap_c=600.0,
+            min_samples=2,
+            min_coverage=0.5,
+        ),
         pages=("overview", "operations", "records"),
     )
 
@@ -516,6 +564,16 @@ def config_to_mapping(cfg: PlatformConfig) -> dict:
                 "scale_offset_max_kg": cfg.batch.scale_offset_max_kg,
                 "mix_tolerance_pct": cfg.batch.mix_tolerance_pct,
                 "charge_window_s": cfg.batch.charge_window_s,
+            },
+            "disposition": {
+                "hold_downgrade_s": cfg.disposition.hold_downgrade_s,
+                "hold_scrap_s": cfg.disposition.hold_scrap_s,
+                "low_downgrade_c": cfg.disposition.low_downgrade_c,
+                "low_scrap_c": cfg.disposition.low_scrap_c,
+                "high_downgrade_c": cfg.disposition.high_downgrade_c,
+                "high_scrap_c": cfg.disposition.high_scrap_c,
+                "min_samples": cfg.disposition.min_samples,
+                "min_coverage": cfg.disposition.min_coverage,
             },
         },
         "pages": list(cfg.pages),

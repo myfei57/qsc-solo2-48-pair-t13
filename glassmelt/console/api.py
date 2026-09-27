@@ -74,6 +74,11 @@ class ConsoleAPI:
 
         return self.platform.readiness_report()
 
+    def disposition(self) -> dict:
+        """滞留批次处置结论：继续／降级／判废，依据不足的待判。"""
+
+        return self.platform.disposition_report()
+
     def start_batch(self, payload: dict) -> dict:
         path = str(payload.get("path", "start"))
         return self._guard(lambda: self.platform.start_charging(path=path))
