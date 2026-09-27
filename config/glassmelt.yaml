@@ -47,6 +47,14 @@ limits:
     scale_offset_max_kg: 12.0
     mix_tolerance_pct: 1.5
     charge_window_s: 180.0
+  disposition:
+    hold_max_s: 3600.0
+    temp_low_c: 480.0
+    temp_high_c: 590.0
+    downgrade_excursion_s: 120.0
+    scrap_excursion_s: 600.0
+    min_samples: 3
+    min_coverage: 0.5
 pages:
   - overview
   - operations

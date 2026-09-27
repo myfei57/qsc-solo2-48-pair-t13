@@ -36,6 +36,7 @@ from .furnace.mix import MixPlanner
 from .furnace.temp import FurnaceTemperature
 from .lehr.anneal import AnnealZones
 from .lehr.belt import BeltDrive
+from .lehr.disposition import DispositionBoard
 from .lehr.heater import HeaterBank
 from .mold.blow import BlowStation
 from .mold.close import MoldCloser
@@ -169,6 +170,7 @@ class Platform:
         self.belt = BeltDrive(self.clock, self.bus, self.config.lehr)
         self.heater = HeaterBank(self.clock, self.bus, self.config.lehr)
         self.anneal = AnnealZones(self.bus, self.config.lehr)
+        self.disposition = DispositionBoard(self.clock, self.bus, self.config.disposition)
 
         self._cycles = 0
         self._elapsed_s = 0.0
@@ -201,6 +203,7 @@ class Platform:
             ("mold", "fill", "mold-cavity"),
             ("lehr", "belt", "lehr-belt"),
             ("lehr", "heater", "lehr-heater-bank"),
+            ("lehr", "disposition", "lehr-disposition-board"),
         ):
             self.namespaces.register(area, device, kind)
 
@@ -477,6 +480,34 @@ class Platform:
                 "heater": heater.as_dict(),
             }
 
+    def note_lehr_hold(self, reason: str = "出口堵塞") -> dict:
+        """登记退火窑出口堵塞：此后窑内积压的在制品归为新的一批。"""
+
+        with self._lock:
+            return self.disposition.note_hold(reason)
+
+    def clear_lehr_hold(self, reason: str = "排堵结束") -> dict:
+        """排堵结束：按滞留时长与窑温履历判定这批在制品的处置。"""
+
+        with self._lock:
+            record = self.disposition.clear_hold(reason)
+            return record.as_dict()
+
+    def rejudge_lehr_hold(self, hold_id: str, samples: list | None = None) -> dict:
+        """待判批次补齐温度履历后重新判定；已有终态结论的批次原样返回。"""
+
+        with self._lock:
+            record = self.disposition.evaluate(hold_id, extra_samples=samples)
+            return record.as_dict()
+
+    def disposition_report(self) -> dict:
+        """全部滞留批次的处置记录与统计。"""
+
+        return {
+            "snapshot": self.disposition.snapshot(),
+            "records": self.disposition.records(),
+        }
+
     def recalibrate_scale(self, offset_kg: float) -> dict:
         """重新标定投料秤并让下一批配比走新基线。"""
 
@@ -635,6 +666,8 @@ class Platform:
                 "/api/forehearth/gate",
                 "/api/mold/blow",
                 "/api/lehr/reset",
+                "/api/lehr/hold",
+                "/api/lehr/disposition",
                 "/api/scale/calibrate",
                 "/api/furnace/clear",
                 "/api/furnace/rebuild",
@@ -696,6 +729,7 @@ class Platform:
                 "belt": self.belt.snapshot(),
                 "heater": self.heater.snapshot(),
                 "zones": self.anneal.snapshot(),
+                "disposition": self.disposition.snapshot(),
             },
             "namespace_areas": sorted(
                 {entry["area"] for entry in self.namespaces.describe()}
@@ -728,6 +762,7 @@ def build_platform(
             mold=effective.mold,
             lehr=effective.lehr,
             batch=effective.batch,
+            disposition=effective.disposition,
             pages=effective.pages,
         )
     return Platform(config=effective, clock=clock, unit=unit)

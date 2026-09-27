@@ -98,6 +98,11 @@ def _cmd_demo(args: argparse.Namespace) -> int:
     restored = platform.start_charging(path="resume")
     anneal_excursion = platform.evaluate_anneal(592.0)
     lehr_reset = platform.reset_lehr("演示用退火复位")
+    platform.note_lehr_hold("演示用出口堵塞")
+    for _ in range(3):
+        platform.evaluate_anneal(platform.config.temp.anneal_target_c + 12.0)
+        platform.clock.sleep(2.0)
+    hold_disposition = platform.clear_lehr_hold("演示用排堵")
     shutdown = platform.stop()
 
     server = ConsoleServer(platform)
@@ -119,6 +124,7 @@ def _cmd_demo(args: argparse.Namespace) -> int:
         "charged_after_clear": restored,
         "anneal_excursion": anneal_excursion,
         "lehr_reset": lehr_reset,
+        "hold_disposition": hold_disposition,
         "shutdown": shutdown,
         "probe": probe,
         "audit": platform.audit.summary(),

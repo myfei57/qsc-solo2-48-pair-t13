@@ -2,8 +2,9 @@
 
 配置来自 YAML（由 vendored PyYAML 解析），覆盖玻璃液面带、熔化温度区间、
 助燃风与燃气上限、供料道稳温带与保持时间、退火告警阈值、料滴质量公差、
-合模力下限、网带快慢速与投料秤标定范围。任何缺失或越界取值都在装配阶段
-抛出 :class:`ConfigError`，不允许带着半份配置启动控制链。
+合模力下限、网带快慢速、投料秤标定范围与滞留在制品的处置判定阈值。
+任何缺失或越界取值都在装配阶段抛出 :class:`ConfigError`，不允许带着半份
+配置启动控制链。
 """
 
 from __future__ import annotations
@@ -295,6 +296,47 @@ class LehrLimits:
 
 
 @dataclass(frozen=True)
+class DispositionLimits:
+    """出口堵塞滞留在制品的处置判定阈值。"""
+
+    hold_max_s: float
+    temp_low_c: float
+    temp_high_c: float
+    downgrade_excursion_s: float
+    scrap_excursion_s: float
+    min_samples: int
+    min_coverage: float
+
+    @classmethod
+    def from_mapping(cls, section: Mapping[str, Any]) -> "DispositionLimits":
+        limits = cls(
+            hold_max_s=_number(section, "hold_max_s", minimum=0.0),
+            temp_low_c=_number(section, "temp_low_c"),
+            temp_high_c=_number(section, "temp_high_c"),
+            downgrade_excursion_s=_number(section, "downgrade_excursion_s", minimum=0.0),
+            scrap_excursion_s=_number(section, "scrap_excursion_s", minimum=0.0),
+            min_samples=int(_number(section, "min_samples", minimum=1.0)),
+            min_coverage=_number(section, "min_coverage", minimum=0.0),
+        )
+        if limits.hold_max_s <= 0:
+            raise ConfigError("滞留时长上限必须为正", component="config")
+        if not limits.temp_low_c < limits.temp_high_c:
+            raise ConfigError("处置判定温度带必须满足 下限 < 上限", component="config")
+        if not 0.0 < limits.downgrade_excursion_s < limits.scrap_excursion_s:
+            raise ConfigError("越限时长阈值必须满足 0 < 降级阈 < 判废阈", component="config")
+        if limits.min_samples < 2:
+            raise ConfigError("处置判定至少需要两个温度履历样本", component="config")
+        if not 0.0 < limits.min_coverage <= 1.0:
+            raise ConfigError("履历覆盖率下限必须在 (0, 1] 内", component="config")
+        return limits
+
+    def band_ok(self, temperature_c: float) -> bool:
+        """滞留期间窑温是否落在允许带内。"""
+
+        return self.temp_low_c <= float(temperature_c) <= self.temp_high_c
+
+
+@dataclass(frozen=True)
 class BatchLimits:
     """投料与配比约束。"""
 
@@ -341,6 +383,7 @@ class PlatformConfig:
     mold: MoldLimits
     lehr: LehrLimits
     batch: BatchLimits
+    disposition: DispositionLimits
     pages: tuple[str, ...] = field(default_factory=tuple)
 
     @classmethod
@@ -376,6 +419,7 @@ class PlatformConfig:
             mold=MoldLimits.from_mapping(_section(limits, "mold")),
             lehr=LehrLimits.from_mapping(_section(limits, "lehr")),
             batch=BatchLimits.from_mapping(_section(limits, "batch")),
+            disposition=DispositionLimits.from_mapping(_section(limits, "disposition")),
             pages=tuple(pages),
         )
 
@@ -451,6 +495,15 @@ def default_config() -> PlatformConfig:
             mix_tolerance_pct=1.5,
             charge_window_s=180.0,
         ),
+        disposition=DispositionLimits(
+            hold_max_s=3600.0,
+            temp_low_c=480.0,
+            temp_high_c=590.0,
+            downgrade_excursion_s=120.0,
+            scrap_excursion_s=600.0,
+            min_samples=3,
+            min_coverage=0.5,
+        ),
         pages=("overview", "operations", "records"),
     )
 
@@ -516,6 +569,15 @@ def config_to_mapping(cfg: PlatformConfig) -> dict:
                 "scale_offset_max_kg": cfg.batch.scale_offset_max_kg,
                 "mix_tolerance_pct": cfg.batch.mix_tolerance_pct,
                 "charge_window_s": cfg.batch.charge_window_s,
+            },
+            "disposition": {
+                "hold_max_s": cfg.disposition.hold_max_s,
+                "temp_low_c": cfg.disposition.temp_low_c,
+                "temp_high_c": cfg.disposition.temp_high_c,
+                "downgrade_excursion_s": cfg.disposition.downgrade_excursion_s,
+                "scrap_excursion_s": cfg.disposition.scrap_excursion_s,
+                "min_samples": cfg.disposition.min_samples,
+                "min_coverage": cfg.disposition.min_coverage,
             },
         },
         "pages": list(cfg.pages),

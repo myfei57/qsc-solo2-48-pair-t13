@@ -98,6 +98,27 @@ class ConsoleAPI:
         reason = str(payload.get("reason", "控制台触发的退火复位"))
         return self._guard(lambda: self.platform.reset_lehr(reason=reason))
 
+    def hold_lehr(self, payload: dict) -> dict:
+        """出口堵塞登记／排堵处置／待判重判，走 ``path`` 区分。"""
+
+        path = str(payload.get("path", "note"))
+        reason = str(payload.get("reason", "控制台触发的出口堵塞"))
+        if path == "note":
+            return self._guard(lambda: self.platform.note_lehr_hold(reason))
+        if path == "clear":
+            return self._guard(lambda: self.platform.clear_lehr_hold(reason))
+        if path == "rejudge":
+            hold_id = str(payload.get("hold_id", ""))
+            raw = payload.get("samples")
+            samples = raw if isinstance(raw, list) else None
+            return self._guard(lambda: self.platform.rejudge_lehr_hold(hold_id, samples))
+        raise ValueError(f"未知的滞留登记路径: {path}")
+
+    def dispositions(self) -> dict:
+        """滞留在制品的处置记录与统计。"""
+
+        return self.platform.disposition_report()
+
     def trip_burner(self, payload: dict) -> dict:
         zone = str(payload.get("zone", "zone-3"))
         reason = str(payload.get("reason", "控制台触发的窑温越限"))
